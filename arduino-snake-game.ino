@@ -17,25 +17,25 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define DIRECTION_UP 3
 #define DIRECTION_DOWN 4
 
-class SnakeNode
+class Node
 {
 private:
 public:
   int x;
   int y;
-  SnakeNode *next = NULL;
+  Node *next = NULL;
 
-  SnakeNode(int x, int y)
+  Node(int x, int y)
   {
     this->x = x;
     this->y = y;
   }
 
-  SnakeNode()
+  Node()
   {
   }
 
-  ~SnakeNode()
+  ~Node()
   {
     Serial.println("delete node");
   }
@@ -91,50 +91,79 @@ class Snake
 {
 private:
 public:
-  SnakeNode *head;
+  Node *head;
   int length = 1;
   int direction = DIRECTION_DOWN;
-  Snake()
+  Snake(int x, int y)
   {
-    head = new SnakeNode(10, 10);
+    head = new Node(x, y);
   }
 
   ~Snake()
   {
     Serial.println("delete snake");
-    SnakeNode *current = head;
+    Node *current = head;
     while (current->next != NULL)
     {
-      SnakeNode *next = current->next;
+      Node *next = current->next;
       delete current;
       current = next;
     }
   }
 
-  void addHead(int x, int y)
+  bool tryEat(Node *food)
+  {
+    if ((abs(head->x - food->x) == 1 && head->y == food->y) || (abs(head->y - food->y) == 1 && head->x == food->x))
+    {
+      Serial.println("eat");
+      growUp(food);
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+  }
+
+  void growUp(Node *node)
+  {
+    node->next = head;
+    head = node;
+    length++;
+  }
+
+  void moveTo(int x, int y)
   {
     Serial.println("add head");
-    SnakeNode *newHead = cutTail();
+    Node *newHead = cutTail();
     newHead->setLocation(x, y);
     if (newHead != head)
     {
       Serial.println("not equel");
       newHead->next = head;
       head = newHead;
+      Serial.println("end");
     }
   }
 
-  SnakeNode *cutTail()
+  Node *cutTail()
   {
     Serial.println("cut tail");
-    SnakeNode *current = head;
+    Node *pre = NULL;
+    Node *current = head;
     while (current->next)
     {
+      pre = current;
       current = current->next;
       char s[100];
       sprintf(s, "in %x", &current);
       Serial.println(s);
     }
+    if (!pre)
+    {
+      pre -> next = NULL;
+    }
+    
     return current;
   }
 
@@ -164,24 +193,23 @@ public:
 
   void move()
   {
-    showSnake();
     switch (direction)
     {
     case DIRECTION_LEFT:
       Serial.println("move left");
-      addHead(head->x - SPEED, head->y);
+      moveTo(head->x - SPEED, head->y);
       break;
     case DIRECTION_RIGHT:
       Serial.println("move right");
-      addHead(head->x + SPEED, head->y);
+      moveTo(head->x + SPEED, head->y);
       break;
     case DIRECTION_UP:
       Serial.println("move up");
-      addHead(head->x, head->y - SPEED);
+      moveTo(head->x, head->y - SPEED);
       break;
     case DIRECTION_DOWN:
       Serial.println("move down");
-      addHead(head->x, head->y + SPEED);
+      moveTo(head->x, head->y + SPEED);
       break;
     default:
       Serial.println("unknown direction");
@@ -189,22 +217,20 @@ public:
     }
   }
 
-  void showSnake()
+  void show()
   {
-    display.clearDisplay();
-    SnakeNode *current = head;
+    Node *current = head;
     do
     {
       current->show();
       current = current->next;
     } while (current->next);
-    display.display();
   }
 
   String print()
   {
     Serial.println("======================");
-    SnakeNode *current = this->head;
+    Node *current = this->head;
     while (current->next != NULL)
     {
       current = current->next;
@@ -213,14 +239,20 @@ public:
   }
 };
 
-Snake *snake = new Snake();
+Snake *snake = new Snake(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
+Node *food;
 
 static bool timeUp = false;
 
 void myTimer()
 {
   timeUp = true;
-  Serial.println(timeUp);
+}
+
+void creatFood()
+{
+  Serial.println("creat new food");
+  food = new Node(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
 }
 
 void setup()
@@ -237,23 +269,30 @@ void setup()
   display.clearDisplay();
   display.display();
   Serial.println("timmer start");
-  MsTimer2::set(500, myTimer);
+  MsTimer2::set(200, myTimer);
   MsTimer2::start();
   Serial.println("timmer started");
+  creatFood();
 }
 
 void loop()
 {
+  display.clearDisplay();
+  snake->show();
+  food->show();
+  display.display();
   if (timeUp)
   {
-    Serial.println("move");
+    if (snake->tryEat(food))
+    {
+      creatFood();
+    }
     snake->move();
     timeUp = false;
   }
   int c = Serial.read();
   if (c != -1)
   {
-    Serial.println(c);
     switch (c)
     {
     case DIRECTION_LEFT:
@@ -269,7 +308,7 @@ void loop()
       snake->down();
       break;
     default:
-      Serial.println("unknown " + c);
+      Serial.println("unknown command");
       break;
     }
   }
