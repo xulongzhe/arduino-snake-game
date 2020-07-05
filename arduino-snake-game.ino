@@ -45,6 +45,7 @@ public:
     display.drawPixel(x, y, SSD1306_WHITE);
   }
 
+  // 设置节点位置，范围不会超过
   void setLocation(int x, int y)
   {
     if (x > SCREEN_WIDTH)
@@ -111,6 +112,7 @@ public:
     }
   }
 
+  // 尝试吃食物（食物与蛇头的碰撞检测）
   bool tryEat(Node *food)
   {
     if ((abs(head->x - food->x) == 1 && head->y == food->y) || (abs(head->y - food->y) == 1 && head->x == food->x))
@@ -125,6 +127,7 @@ public:
     }
   }
 
+  // 吃掉食物后长大（将食物所在节点作为新的头部节点）
   void growUp(Node *node)
   {
     node->next = head;
@@ -132,38 +135,40 @@ public:
     length++;
   }
 
+  // 将蛇向某个点移动
   void moveTo(int x, int y)
   {
-    Serial.println("add head");
+    // 将切掉的尾部节点作为新的头部节点
     Node *newHead = cutTail();
     newHead->setLocation(x, y);
     if (newHead != head)
     {
-      Serial.println("not equel");
       newHead->next = head;
       head = newHead;
-      Serial.println("end");
     }
   }
 
+  // 切掉蛇的最后一个节点，并将此节点返回（如果只有一个节点，则返回头部节点）
   Node *cutTail()
   {
     Serial.println("cut tail");
+    // 用于存放倒数第二个节点
     Node *pre = NULL;
+    // 当前节点设为头部节点
     Node *current = head;
+    // 遍历获取最后一个节点和倒数第二个节点
     while (current->next)
     {
       pre = current;
       current = current->next;
-      char s[100];
-      sprintf(s, "in %x", &current);
-      Serial.println(s);
     }
-    if (!pre)
+
+    // 如果有倒数第二个节点，则倒数第二个节点变成最后一个节点
+    if (pre)
     {
-      pre -> next = NULL;
+      pre->next = NULL;
     }
-    
+
     return current;
   }
 
@@ -217,6 +222,7 @@ public:
     }
   }
 
+  // 绘制整个蛇
   void show()
   {
     Node *current = head;
@@ -242,13 +248,15 @@ public:
 Snake *snake = new Snake(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
 Node *food;
 
+// 是否到达刷新时间
 static bool timeUp = false;
 
-void myTimer()
+void refreshTimer()
 {
   timeUp = true;
 }
 
+// 随机创建一个食物
 void creatFood()
 {
   Serial.println("creat new food");
@@ -266,12 +274,15 @@ void setup()
     for (;;)
       ; // Don't proceed, loop forever
   }
+  // 清除屏幕
   display.clearDisplay();
   display.display();
-  Serial.println("timmer start");
-  MsTimer2::set(200, myTimer);
+
+  // 启动定时器，每隔一段时间刷新游戏界面
+  MsTimer2::set(200, refreshTimer);
   MsTimer2::start();
-  Serial.println("timmer started");
+
+  // 创建一个食物
   creatFood();
 }
 
