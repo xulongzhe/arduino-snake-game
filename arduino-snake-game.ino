@@ -6,6 +6,10 @@
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define STATUS_BAR_HEIGHT 10
+#define GRID_SIZE 3
+#define GRID_WIDTH SCREEN_WIDTH / GRID_SIZE
+#define GRID_HEIGHT (SCREEN_HEIGHT - STATUS_BAR_HEIGHT) / GRID_SIZE
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET 4 // Reset pin # (or -1 if sharing Arduino reset pin)
@@ -42,49 +46,37 @@ public:
 
   void show()
   {
-    display.drawPixel(x, y, SSD1306_WHITE);
+    display.drawRect(x * GRID_SIZE, y * GRID_SIZE + (STATUS_BAR_HEIGHT / GRID_SIZE * GRID_SIZE), GRID_SIZE, GRID_SIZE, SSD1306_WHITE);
   }
 
   // 设置节点位置，范围不会超过
   void setLocation(int x, int y)
   {
-    if (x > SCREEN_WIDTH)
+    if (x > GRID_WIDTH)
     {
       this->x = 0;
     }
     else if (x < 0)
     {
-      this->x = SCREEN_WIDTH;
+      this->x = GRID_WIDTH;
     }
     else
     {
       this->x = x;
     }
 
-    if (y > SCREEN_HEIGHT)
+    if (y > GRID_HEIGHT)
     {
       this->y = 0;
     }
     else if (y < 0)
     {
-      this->y = SCREEN_HEIGHT;
+      this->y = GRID_HEIGHT;
     }
     else
     {
       this->y = y;
     }
-  }
-
-  char *toString()
-  {
-    char *str = new char[20];
-    sprintf(str, "[%d,%d]", x, y);
-    return str;
-  }
-
-  void print()
-  {
-    Serial.println(toString());
   }
 };
 
@@ -92,11 +84,6 @@ class Food : public Node
 {
 public:
   Food(int x, int y) : Node(x, y) {}
-  void show()
-  {
-    Serial.println("draw food");
-    display.drawCircle(x, y, 1, SSD1306_WHITE);
-  }
 };
 
 class Snake
@@ -126,7 +113,7 @@ public:
   // 尝试吃食物（食物与蛇头的碰撞检测）
   bool tryEat(Food *food)
   {
-    if ((abs(head->x - food->x) == 1 && head->y == food->y) || (abs(head->y - food->y) == 1 && head->x == food->x))
+    if ((abs(head->x - food->x) == 2 && head->y == food->y) || (abs(head->y - food->y) == 2 && head->x == food->x))
     {
       Serial.println("eat");
       eat(food);
@@ -239,11 +226,12 @@ public:
   void show()
   {
     Node *current = head;
-    do
+    current->show();
+    while (current->next)
     {
-      current->show();
       current = current->next;
-    } while (current->next);
+      current->show();
+    }
   }
 };
 
@@ -262,14 +250,14 @@ public:
 
   void createSnake()
   {
-    snake = new Snake(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
+    snake = new Snake(random(GRID_WIDTH), random(GRID_HEIGHT));
   }
 
   // 随机创建一个食物
   void createFood()
   {
     Serial.println("creat new food");
-    food = new Food(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
+    food = new Food(random(GRID_WIDTH), random(GRID_HEIGHT));
   }
 
   void refresh()
@@ -279,9 +267,10 @@ public:
     food->show();
     display.setTextSize(1); // Draw 2X-scale text
     display.setTextColor(SSD1306_WHITE);
-    display.setCursor(10, 0);
+    display.setCursor(0, 0);
     display.print(F("SCORE:"));
     display.print(score);
+    display.drawFastHLine(0, STATUS_BAR_HEIGHT, SCREEN_WIDTH, SSD1306_WHITE);
     display.display();
     if (snake->tryEat(food))
     {
