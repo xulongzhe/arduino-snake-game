@@ -88,6 +88,17 @@ public:
   }
 };
 
+class Food : public Node
+{
+public:
+  Food(int x, int y) : Node(x, y) {}
+  void show()
+  {
+    Serial.println("draw food");
+    display.drawCircle(x, y, 1, SSD1306_WHITE);
+  }
+};
+
 class Snake
 {
 private:
@@ -113,12 +124,12 @@ public:
   }
 
   // 尝试吃食物（食物与蛇头的碰撞检测）
-  bool tryEat(Node *food)
+  bool tryEat(Food *food)
   {
     if ((abs(head->x - food->x) == 1 && head->y == food->y) || (abs(head->y - food->y) == 1 && head->x == food->x))
     {
       Serial.println("eat");
-      growUp(food);
+      eat(food);
       return true;
     }
     else
@@ -128,10 +139,12 @@ public:
   }
 
   // 吃掉食物后长大（将食物所在节点作为新的头部节点）
-  void growUp(Node *node)
+  void eat(Food *food)
   {
-    node->next = head;
-    head = node;
+    Node *newHead = new Node(food->x, food->y);
+    delete food;
+    newHead->next = head;
+    head = newHead;
     length++;
   }
 
@@ -232,35 +245,87 @@ public:
       current = current->next;
     } while (current->next);
   }
+};
 
-  String print()
+class Game
+{
+public:
+  Snake *snake;
+  Food *food;
+  int score = 0;
+
+  void init()
   {
-    Serial.println("======================");
-    Node *current = this->head;
-    while (current->next != NULL)
+    createFood();
+    createSnake();
+  }
+
+  void createSnake()
+  {
+    snake = new Snake(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
+  }
+
+  // 随机创建一个食物
+  void createFood()
+  {
+    Serial.println("creat new food");
+    food = new Food(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
+  }
+
+  void refresh()
+  {
+    display.clearDisplay();
+    snake->show();
+    food->show();
+    display.setTextSize(1); // Draw 2X-scale text
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(10, 0);
+    display.print(F("SCORE:"));
+    display.print(score);
+    display.display();
+    if (snake->tryEat(food))
     {
-      current = current->next;
+      score++;
+      createFood();
     }
-    Serial.println("======================");
+    snake->move();
+  }
+
+  void acceptInput()
+  {
+    int c = Serial.read();
+    if (c != -1)
+    {
+      switch (c)
+      {
+      case DIRECTION_LEFT:
+        snake->left();
+        break;
+      case DIRECTION_RIGHT:
+        snake->right();
+        break;
+      case DIRECTION_UP:
+        snake->up();
+        break;
+      case DIRECTION_DOWN:
+        snake->down();
+        break;
+      default:
+        Serial.println("unknown command");
+        break;
+      }
+    }
   }
 };
 
-Snake *snake = new Snake(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
-Node *food;
-
 // 是否到达刷新时间
 static bool timeUp = false;
+static Game *game = new Game();
 
+// 定时器触发时将标志位设为真，这里不能直接将逻辑写在定时器中，因为业务逻辑中包含串口IO，耗时过长。
 void refreshTimer()
 {
   timeUp = true;
-}
-
-// 随机创建一个食物
-void creatFood()
-{
-  Serial.println("creat new food");
-  food = new Node(random(SCREEN_WIDTH), random(SCREEN_HEIGHT));
 }
 
 void setup()
@@ -282,45 +347,15 @@ void setup()
   MsTimer2::set(200, refreshTimer);
   MsTimer2::start();
 
-  // 创建一个食物
-  creatFood();
+  game->init();
 }
 
 void loop()
 {
-  display.clearDisplay();
-  snake->show();
-  food->show();
-  display.display();
   if (timeUp)
   {
-    if (snake->tryEat(food))
-    {
-      creatFood();
-    }
-    snake->move();
+    game->refresh();
     timeUp = false;
   }
-  int c = Serial.read();
-  if (c != -1)
-  {
-    switch (c)
-    {
-    case DIRECTION_LEFT:
-      snake->left();
-      break;
-    case DIRECTION_RIGHT:
-      snake->right();
-      break;
-    case DIRECTION_UP:
-      snake->up();
-      break;
-    case DIRECTION_DOWN:
-      snake->down();
-      break;
-    default:
-      Serial.println("unknown command");
-      break;
-    }
-  }
+  game->acceptInput();
 }
